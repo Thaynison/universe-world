@@ -1,0 +1,2295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Solar - Simulador Oficial</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --nasa-blue: #0B3D91;
+            --nasa-red: #FC3D21;
+            --nasa-white: #FFFFFF;
+            --space-black: #0a0a0a;
+            --panel-bg: rgba(11, 61, 145, 0.15);
+            --panel-border: rgba(252, 61, 33, 0.3);
+            --text-primary: #E8F4FD;
+            --text-secondary: #B8D4EA;
+            --accent-orange: #FF6B35;
+            --success-green: #4CAF50;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: radial-gradient(ellipse at center, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            color: var(--text-primary);
+            overflow: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="stars" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.5" fill="white" opacity="0.8"/><circle cx="15" cy="8" r="0.3" fill="white" opacity="0.6"/><circle cx="8" cy="15" r="0.4" fill="white" opacity="0.7"/></pattern></defs><rect width="100" height="100" fill="url(%23stars)"/></svg>') repeat;
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        #canvas {
+            display: block;
+            cursor: crosshair;
+            border: 2px solid var(--panel-border);
+            border-radius: 8px;
+        }
+
+        #canvas:active {
+            cursor: grabbing;
+        }
+
+        .nasa-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(135deg, var(--nasa-blue) 0%, #1e4d8b 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .nasa-logo {
+            font-family: 'Orbitron', monospace;
+            font-weight: 900;
+            font-size: 24px;
+            color: var(--nasa-white);
+            margin-right: 20px;
+        }
+
+        .mission-title {
+            font-family: 'Orbitron', monospace;
+            font-weight: 400;
+            font-size: 16px;
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--success-green);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .control-panel {
+            position: absolute;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            padding: 8px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            cursor: move;
+            user-select: none;
+            z-index: 100;
+        }
+
+        .control-panel:hover {
+            border-color: var(--nasa-red);
+            box-shadow: 0 12px 40px rgba(252, 61, 33, 0.2);
+        }
+
+        .control-panel.dragging {
+            z-index: 1000;
+            transform: scale(1.02);
+            box-shadow: 0 16px 48px rgba(252, 61, 33, 0.3);
+        }
+
+        .control-panel.resizing {
+            z-index: 1000;
+            box-shadow: 0 16px 48px rgba(255, 107, 53, 0.3);
+        }
+
+        .resize-handle {
+            position: absolute;
+            background: var(--nasa-red);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .control-panel:hover .resize-handle {
+            opacity: 0.7;
+        }
+
+        .resize-handle:hover {
+            opacity: 1 !important;
+        }
+
+        .resize-handle.corner {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .resize-handle.edge {
+            background: linear-gradient(45deg, var(--nasa-red), var(--accent-orange));
+        }
+
+        .resize-se {
+            bottom: -6px;
+            right: -6px;
+            cursor: se-resize;
+        }
+
+        .resize-sw {
+            bottom: -6px;
+            left: -6px;
+            cursor: sw-resize;
+        }
+
+        .resize-ne {
+            top: -6px;
+            right: -6px;
+            cursor: ne-resize;
+        }
+
+        .resize-nw {
+            top: -6px;
+            left: -6px;
+            cursor: nw-resize;
+        }
+
+        .resize-n {
+            top: -3px;
+            left: 10px;
+            right: 10px;
+            height: 6px;
+            cursor: n-resize;
+        }
+
+        .resize-s {
+            bottom: -3px;
+            left: 10px;
+            right: 10px;
+            height: 6px;
+            cursor: s-resize;
+        }
+
+        .resize-e {
+            right: -3px;
+            top: 10px;
+            bottom: 10px;
+            width: 6px;
+            cursor: e-resize;
+        }
+
+        .resize-w {
+            left: -3px;
+            top: 10px;
+            bottom: 10px;
+            width: 6px;
+            cursor: w-resize;
+        }
+
+        .mission-control {
+            bottom: 20px;
+            left: 20px;
+            width: 180px;
+            height: 280px;
+            overflow-y: auto;
+        }
+
+        .telemetry-panel {
+            bottom: 20px;
+            left: 220px;
+            width: 160px;
+            height: 280px;
+            overflow-y: auto;
+        }
+
+        .navigation-panel {
+            bottom: 20px;
+            left: 400px;
+            width: 200px;
+            height: 200px;
+            overflow-y: auto;
+        }
+
+        .system-status {
+            bottom: 20px;
+            left: 620px;
+            width: 150px;
+            height: 200px;
+            overflow-y: auto;
+        }
+
+        .panel-header {
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            font-size: 12px;
+            color: var(--nasa-red);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .panel-icon {
+            width: 16px;
+            height: 16px;
+            fill: var(--nasa-red);
+        }
+
+        .control-section {
+            margin-bottom: 8px;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .section-title {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--accent-orange);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .nasa-select {
+            width: 100%;
+            padding: 8px 12px;
+            background: rgba(11, 61, 145, 0.2);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: 'Roboto', sans-serif;
+            font-size: 13px;
+        }
+
+        .nasa-select option {
+            background: var(--nasa-blue);
+            color: var(--text-primary);
+        }
+
+        .control-slider {
+            width: 100%;
+            margin: 10px 0;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .control-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--nasa-red);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: var(--nasa-red);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .nasa-button {
+            background: linear-gradient(135deg, var(--nasa-red) 0%, #e63946 100%);
+            color: var(--nasa-white);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Roboto', sans-serif;
+            font-size: 9px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(252, 61, 33, 0.3);
+        }
+
+        .nasa-button:hover {
+            background: linear-gradient(135deg, #e63946 0%, var(--nasa-red) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(252, 61, 33, 0.4);
+        }
+
+        .nasa-button.active {
+            background: linear-gradient(135deg, var(--accent-orange) 0%, #ff8500 100%);
+            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+        }
+
+        .button-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .speed-controls {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .speed-controls .nasa-button {
+            flex: 1;
+            min-width: 60px;
+            font-size: 10px;
+            padding: 6px 8px;
+        }
+
+        .telemetry-data {
+            font-size: 11px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            border-left: 3px solid var(--nasa-red);
+        }
+
+        .data-label {
+            color: var(--accent-orange);
+            font-weight: 500;
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .data-value {
+            color: var(--text-primary);
+            font-family: 'Orbitron', monospace;
+        }
+
+        .mission-time {
+            font-family: 'Orbitron', monospace;
+            font-size: 16px;
+            color: var(--success-green);
+            text-align: center;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border: 1px solid var(--success-green);
+        }
+
+        .navigation-help {
+            font-size: 10px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .help-category {
+            margin-bottom: 12px;
+        }
+
+        .help-title {
+            color: var(--accent-orange);
+            font-weight: 500;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 1px;
+        }
+
+        .orbital-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 4px;
+            border-left: 2px solid var(--success-green);
+        }
+
+        .orbit-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success-green);
+        }
+
+        .slider-value {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            color: var(--nasa-red);
+            float: right;
+            font-weight: 500;
+        }
+
+        /* Scrollbar personalizada */
+        .control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .control-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb {
+            background: var(--nasa-red);
+            border-radius: 3px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-orange);
+        }
+
+        /* Animações */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .control-panel {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        /* Responsividade */
+        @media (max-width: 1200px) {
+            .mission-control {
+                width: 160px;
+                height: 250px;
+            }
+            .telemetry-panel {
+                width: 140px;
+                height: 250px;
+                left: 180px;
+            }
+            .navigation-panel {
+                width: 180px;
+                left: 340px;
+                height: 180px;
+            }
+            .system-status {
+                width: 130px;
+                left: 540px;
+                height: 180px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nasa-header {
+                padding: 0 10px;
+            }
+            .nasa-logo {
+                font-size: 18px;
+            }
+            .mission-title {
+                font-size: 12px;
+            }
+            .mission-control {
+                width: 150px;
+                height: 220px;
+            }
+            .telemetry-panel {
+                width: 130px;
+                height: 220px;
+                left: 170px;
+            }
+            .navigation-panel {
+                width: 160px;
+                left: 320px;
+                height: 160px;
+            }
+            .system-status {
+                width: 120px;
+                left: 500px;
+                height: 160px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header NASA -->
+    <div class="nasa-header">
+        <div class="nasa-logo">NEXUS</div>
+        <div class="mission-title">SOLAR SYSTEM</div>
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span>SISTEMA ATIVO</span>
+        </div>
+    </div>
+
+    <!-- Canvas Principal -->
+    <canvas id="canvas"></canvas>
+    
+    <!-- Painel de Controle da Missão -->
+    <div class="control-panel mission-control">
+        <!-- Alças de redimensionamento -->
+        <div class="resize-handle corner resize-nw"></div>
+        <div class="resize-handle edge resize-n"></div>
+        <div class="resize-handle corner resize-ne"></div>
+        <div class="resize-handle edge resize-e"></div>
+        <div class="resize-handle corner resize-se"></div>
+        <div class="resize-handle edge resize-s"></div>
+        <div class="resize-handle corner resize-sw"></div>
+        <div class="resize-handle edge resize-w"></div>
+        
+        <div class="panel-header">
+            <svg class="panel-icon" viewBox="0 0 24 24">
+                <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+            </svg>
+            CONTROLE DA MISSÃO
+        </div>
+        
+        <div class="control-section">
+            <div class="section-title">Alvo da Missão</div>
+            <select id="planetSelect" class="nasa-select">
+                <option value="sun">☉ Sol - Estrela Central</option>
+                <option value="mercury">☿ Mercúrio - Planeta Rochoso</option>
+                <option value="venus">♀ Vênus - Planeta Infernal</option>
+                <option value="earth">🌍 Terra - Planeta Azul</option>
+                <option value="mars">♂ Marte - Planeta Vermelho</option>
+                <option value="jupiter">♃ Júpiter - Gigante Gasoso</option>
+                <option value="saturn">♄ Saturno - Senhor dos Anéis</option>
+                <option value="uranus">♅ Urano - Gigante de Gelo</option>
+                <option value="neptune">♆ Netuno - Mundo Ventoso</option>
+            </select>
+        </div>
+
+        <div class="control-section">
+            <div class="section-title">Sistemas de Visualização</div>
+            <div class="button-grid">
+                <button id="toggleOrbits" class="nasa-button active">Órbitas</button>
+                <button id="toggleLabels" class="nasa-button active">Rótulos</button>
+                <button id="toggleTrails" class="nasa-button">Rastros</button>
+                <button id="toggleGrid" class="nasa-button">Grade</button>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <div class="section-title">Elementos Espaciais</div>
+            <div class="button-grid">
+                <button id="toggleAsteroids" class="nasa-button active">Asteroides</button>
+                <button id="toggleKuiper" class="nasa-button active">Kuiper</button>
+                <button id="toggleComets" class="nasa-button active">Cometas</button>
+                <button id="toggleGalaxies" class="nasa-button active">Galáxias</button>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <div class="section-title">Escala de Observação</div>
+            <label>Tamanho dos Corpos <span id="sizeValue" class="slider-value">0.1x</span></label>
+            <input type="range" id="sizeScale" class="control-slider" min="0.1" max="5" step="0.1" value="0.1">
+            
+            <label>Distância Orbital <span id="distanceValue" class="slider-value">0.1x</span></label>
+            <input type="range" id="distanceScale" class="control-slider" min="0.01" max="1" step="0.01" value="0.1">
+        </div>
+
+        <div class="control-section">
+            <div class="section-title">Controle de Câmera</div>
+            <div class="button-grid">
+                <button id="followPlanet" class="nasa-button">Seguir Alvo</button>
+                <button id="freeCamera" class="nasa-button">Câmera Livre</button>
+                <button id="topView" class="nasa-button active">Vista Superior</button>
+                <button id="resetCamera" class="nasa-button">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Painel de Telemetria -->
+    <div class="control-panel telemetry-panel">
+        <!-- Alças de redimensionamento -->
+        <div class="resize-handle corner resize-nw"></div>
+        <div class="resize-handle edge resize-n"></div>
+        <div class="resize-handle corner resize-ne"></div>
+        <div class="resize-handle edge resize-e"></div>
+        <div class="resize-handle corner resize-se"></div>
+        <div class="resize-handle edge resize-s"></div>
+        <div class="resize-handle corner resize-sw"></div>
+        <div class="resize-handle edge resize-w"></div>
+        
+        <div class="panel-header">
+            <svg class="panel-icon" viewBox="0 0 24 24">
+                <path d="M3,3H21V5H3V3M4,6H20V10H4V6M4,11H20V15H4V11M4,16H20V20H4V16Z"/>
+            </svg>
+            TELEMETRIA ESPACIAL
+        </div>
+        
+        <div class="mission-time" id="missionTime">
+            T+ 00:00:00
+        </div>
+        
+        <div id="planetTelemetry"></div>
+        
+        <div class="orbital-indicator">
+            <div class="orbit-dot"></div>
+            <span style="font-size: 10px;">Sistema em Órbita Estável</span>
+        </div>
+    </div>
+
+    <!-- Painel de Navegação -->
+    <div class="control-panel navigation-panel">
+        <!-- Alças de redimensionamento -->
+        <div class="resize-handle corner resize-nw"></div>
+        <div class="resize-handle edge resize-n"></div>
+        <div class="resize-handle corner resize-ne"></div>
+        <div class="resize-handle edge resize-e"></div>
+        <div class="resize-handle corner resize-se"></div>
+        <div class="resize-handle edge resize-s"></div>
+        <div class="resize-handle corner resize-sw"></div>
+        <div class="resize-handle edge resize-w"></div>
+        
+        <div class="panel-header">
+            <svg class="panel-icon" viewBox="0 0 24 24">
+                <path d="M12,2L13.09,8.26L22,9L13.09,9.74L12,16L10.91,9.74L2,9L10.91,8.26L12,2Z"/>
+            </svg>
+            CONTROLE TEMPORAL
+        </div>
+        
+        <div class="mission-time" id="speedDisplay">Velocidade: 1x Tempo Real</div>
+        
+        <div class="control-section">
+            <div class="section-title">Velocidade da Simulação</div>
+            <input type="range" id="timeSpeed" class="control-slider" min="-10" max="10" step="0.1" value="1">
+            
+            <div class="speed-controls">
+                <button class="nasa-button" onclick="setSpeed(-10)">-10x</button>
+                <button class="nasa-button" onclick="setSpeed(-1)">-1x</button>
+                <button class="nasa-button" onclick="setSpeed(0)">PAUSA</button>
+                <button class="nasa-button" onclick="setSpeed(1)">1x</button>
+                <button class="nasa-button" onclick="setSpeed(10)">+10x</button>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <div class="section-title">Data da Missão</div>
+            <div style="font-family: 'Orbitron', monospace; color: var(--success-green); text-align: center; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                <span id="currentDate"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Painel de Status do Sistema -->
+    <div class="control-panel system-status">
+        <!-- Alças de redimensionamento -->
+        <div class="resize-handle corner resize-nw"></div>
+        <div class="resize-handle edge resize-n"></div>
+        <div class="resize-handle corner resize-ne"></div>
+        <div class="resize-handle edge resize-e"></div>
+        <div class="resize-handle corner resize-se"></div>
+        <div class="resize-handle edge resize-s"></div>
+        <div class="resize-handle corner resize-sw"></div>
+        <div class="resize-handle edge resize-w"></div>
+        
+        <div class="panel-header">
+            <svg class="panel-icon" viewBox="0 0 24 24">
+                <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+            </svg>
+            MANUAL DE NAVEGAÇÃO
+        </div>
+        
+        <div class="navigation-help">
+            <div class="help-category">
+                <div class="help-title">Controle de Mouse</div>
+                • Arrastar: Rotacionar câmera orbital<br>
+                • Scroll: Zoom in/out dinâmico<br>
+                • Clique: Selecionar corpo celeste<br>
+            </div>
+            
+            <div class="help-category">
+                <div class="help-title">Controle de Teclado</div>
+                • WASD: Navegação espacial<br>
+                • Q/E: Movimento vertical<br>
+                • ESPAÇO: Pausar simulação<br>
+                • R: Reset da câmera<br>
+            </div>
+            
+            <div class="help-category">
+                <div class="help-title">Dados Científicos</div>
+                • Órbitas baseadas em dados reais da NASA<br>
+                • Velocidades orbitais precisas<br>
+                • Períodos de rotação autênticos<br>
+                • Física gravitacional simulada<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração do sistema
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Sistema de câmera
+        let camera = {
+            x: 0, y: -800, z: 0,
+            rotX: -Math.PI / 2, rotY: 0,
+            targetX: 0, targetY: -800, targetZ: 0,
+            following: null,
+            mode: 'free',
+            smoothing: 0.08
+        };
+        
+        // Sistema de simulação
+        let simulation = {
+            speed: 1,
+            paused: false,
+            time: Date.now(),
+            startTime: Date.now(),
+            showOrbits: true,
+            showLabels: true,
+            showTrails: false,
+            showGrid: false,
+            showAsteroids: true,
+            showKuiper: true,
+            showComets: true,
+            showGalaxies: true,
+            showNebulae: true,
+            sizeScale: 0.1,
+            distanceScale: 0.1,
+            timeAcceleration: 50
+        };
+        
+        let mouse = { x: 0, y: 0, down: false, lastX: 0, lastY: 0 };
+        let keys = {};
+        
+        // Sistema de asteroides e elementos espaciais
+        let asteroids = [];
+        let kuiperBelt = [];
+        let galaxies = [];
+        let nebulae = [];
+        let comets = [];
+        
+        // Base de dados dos corpos celestes
+        const celestialBodies = {
+            sun: {
+                name: 'Sol',
+                radius: 25,
+                color: '#FDB813',
+                glowColor: '#FFD700',
+                distance: 0,
+                orbitalPeriod: 0,
+                rotationPeriod: 25.4,
+                mass: '1.989 × 10³⁰ kg',
+                temperature: '5,778 K',
+                composition: 'Hidrogênio (73%), Hélio (25%)',
+                info: 'Estrela de sequência principal tipo G. Fonte de energia do sistema solar através de fusão nuclear.',
+                x: 0, y: 0, z: 0,
+                type: 'star'
+            },
+            mercury: {
+                name: 'Mercúrio',
+                radius: 2.5,
+                color: '#8C7853',
+                glowColor: '#A0906B',
+                distance: 80,
+                orbitalPeriod: 88,
+                rotationPeriod: 58.6,
+                mass: '3.301 × 10²³ kg',
+                temperature: '167°C (média)',
+                composition: 'Núcleo de ferro (75%)',
+                info: 'Menor planeta do sistema solar. Extremos térmicos: -173°C a 427°C.',
+                x: 0, y: 0, z: 0,
+                type: 'terrestrial'
+            },
+            venus: {
+                name: 'Vênus',
+                radius: 4,
+                color: '#FFC649',
+                glowColor: '#FFD700',
+                distance: 120,
+                orbitalPeriod: 225,
+                rotationPeriod: -243,
+                mass: '4.867 × 10²⁴ kg',
+                temperature: '462°C',
+                composition: 'Atmosfera de CO₂ (96%)',
+                info: 'Planeta mais quente devido ao efeito estufa extremo. Rotação retrógrada.',
+                x: 0, y: 0, z: 0,
+                type: 'terrestrial'
+            },
+            earth: {
+                name: 'Terra',
+                radius: 4.2,
+                color: '#6B93D6',
+                glowColor: '#87CEEB',
+                distance: 160,
+                orbitalPeriod: 365.25,
+                rotationPeriod: 1,
+                mass: '5.972 × 10²⁴ kg',
+                temperature: '15°C (média)',
+                composition: 'Atmosfera de N₂ (78%), O₂ (21%)',
+                info: 'Único planeta conhecido com vida. 71% da superfície coberta por água.',
+                x: 0, y: 0, z: 0,
+                type: 'terrestrial',
+                moon: {
+                    name: 'Lua',
+                    radius: 1.1,
+                    color: '#C0C0C0',
+                    distance: 18,
+                    orbitalPeriod: 27.3,
+                    mass: '7.342 × 10²² kg'
+                }
+            },
+            mars: {
+                name: 'Marte',
+                radius: 3.2,
+                color: '#CD5C5C',
+                glowColor: '#FF6B6B',
+                distance: 240,
+                orbitalPeriod: 687,
+                rotationPeriod: 1.03,
+                mass: '6.39 × 10²³ kg',
+                temperature: '-65°C (média)',
+                composition: 'Atmosfera de CO₂ (95%)',
+                info: 'Planeta vermelho devido ao óxido de ferro. Possui as maiores montanhas do sistema solar.',
+                x: 0, y: 0, z: 0,
+                type: 'terrestrial'
+            },
+            jupiter: {
+                name: 'Júpiter',
+                radius: 18,
+                color: '#D8CA9D',
+                glowColor: '#F4E4BC',
+                distance: 400,
+                orbitalPeriod: 4333,
+                rotationPeriod: 0.41,
+                mass: '1.898 × 10²⁷ kg',
+                temperature: '-110°C',
+                composition: 'Hidrogênio (89%), Hélio (10%)',
+                info: 'Maior planeta do sistema solar. Possui mais de 80 luas e a Grande Mancha Vermelha.',
+                x: 0, y: 0, z: 0,
+                type: 'gas_giant'
+            },
+            saturn: {
+                name: 'Saturno',
+                radius: 15,
+                color: '#FAD5A5',
+                glowColor: '#FFEAA7',
+                distance: 600,
+                orbitalPeriod: 10759,
+                rotationPeriod: 0.45,
+                mass: '5.683 × 10²⁶ kg',
+                temperature: '-140°C',
+                composition: 'Hidrogênio (96%), Hélio (3%)',
+                info: 'Famoso pelos anéis espetaculares. Densidade menor que a água.',
+                x: 0, y: 0, z: 0,
+                type: 'gas_giant',
+                hasRings: true
+            },
+            uranus: {
+                name: 'Urano',
+                radius: 10,
+                color: '#4FD0E7',
+                glowColor: '#74B9FF',
+                distance: 800,
+                orbitalPeriod: 30687,
+                rotationPeriod: -0.72,
+                mass: '8.681 × 10²⁵ kg',
+                temperature: '-195°C',
+                composition: 'Hidrogênio (83%), Hélio (15%)',
+                info: 'Planeta inclinado 98°. Rotação quase perpendicular à órbita.',
+                x: 0, y: 0, z: 0,
+                type: 'ice_giant'
+            },
+            neptune: {
+                name: 'Netuno',
+                radius: 9,
+                color: '#4B70DD',
+                glowColor: '#6C5CE7',
+                distance: 1000,
+                orbitalPeriod: 60190,
+                rotationPeriod: 0.67,
+                mass: '1.024 × 10²⁶ kg',
+                temperature: '-200°C',
+                composition: 'Hidrogênio (80%), Hélio (19%)',
+                info: 'Planeta mais distante. Ventos supersônicos de até 2.100 km/h.',
+                x: 0, y: 0, z: 0,
+                type: 'ice_giant'
+            }
+        };
+        
+        let selectedPlanet = 'earth';
+        let stars = [];
+        
+        function initPlanetPhases() {
+            const J2000 = Date.UTC(2000, 0, 1, 12, 0, 0); // 01/01/2000 12:00 UTC
+            const nowUTC = Date.now();
+            const days = (nowUTC - J2000) / 86400000;
+            const d2r = Math.PI / 180;
+
+            const meanElements = {
+                mercury: { L0: 252.25084, n: 360 / 87.9691 },   // ~4.092334°/dia
+                venus:   { L0: 181.97973, n: 360 / 224.701 },   // ~1.602130°/dia
+                earth:   { L0: 100.46435, n: 360 / 365.256 },   // ~0.985609°/dia
+                mars:    { L0: 355.43300, n: 360 / 686.980 },   // ~0.524039°/dia
+                jupiter: { L0: 34.35148,  n: 360 / 4332.59 },   // ~0.083087°/dia
+                saturn:  { L0: 50.07747,  n: 360 / 10759.22 },  // ~0.033444°/dia
+                uranus:  { L0: 314.0550,  n: 360 / 30688.5 },   // ~0.011728°/dia
+                neptune: { L0: 304.3487,  n: 360 / 60182.0 },   // ~0.005981°/dia
+            };
+
+            Object.entries(meanElements).forEach(([key, el]) => {
+                if (!celestialBodies[key]) return;
+                const L = (el.L0 + el.n * days) % 360;     // longitude média atual (°)
+                celestialBodies[key].baseAngle = L * d2r;  // radianos para uso no render
+            });
+
+            if (celestialBodies.sun) celestialBodies.sun.baseAngle = 0;
+        }
+
+        // Função para redimensionar canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 60;
+            canvas.style.marginTop = '60px';
+        }
+        
+        // Sistema de projeção 3D
+        function project3D(x, y, z) {
+            const distance = 1200;
+            const scale = distance / (distance + z);
+            return {
+                x: (x * scale) + canvas.width / 2,
+                y: (y * scale) + canvas.height / 2,
+                scale: Math.max(0, scale)
+            };
+        }
+        
+        // Sistema de rotação 3D
+        function rotate3D(x, y, z, rotX, rotY) {
+            const cosY = Math.cos(rotY);
+            const sinY = Math.sin(rotY);
+            const x1 = x * cosY - z * sinY;
+            const z1 = x * sinY + z * cosY;
+            
+            const cosX = Math.cos(rotX);
+            const sinX = Math.sin(rotX);
+            const y1 = y * cosX - z1 * sinX;
+            const z2 = y * sinX + z1 * cosX;
+            
+            return { x: x1, y: y1, z: z2 };
+        }
+        
+        // Cálculo orbital
+        function calculateOrbitalPosition(body, time) {
+            if (body.orbitalPeriod === 0) return { x: 0, y: 0, z: 0 };
+
+            const currentTime = simulation.paused ? simulation.time : time;
+            const timeInSeconds = (currentTime - simulation.startTime) / 1000;
+
+            const orbitalSpeed = (2 * Math.PI) / (body.orbitalPeriod * simulation.timeAcceleration);
+            const base = body.baseAngle || 0; // fase real do dia atual
+            const angle = base + timeInSeconds * orbitalSpeed * simulation.speed;
+
+            const distance = body.distance * simulation.distanceScale;
+            const inclination = Math.sin(angle * 0.1) * 0.05;
+
+            return {
+                x: Math.cos(angle) * distance,
+                y: Math.sin(inclination) * distance * 0.1,
+                z: Math.sin(angle) * distance
+            };
+        }
+
+        
+        // Geração de campo estelar
+        function generateStarField() {
+            stars = [];
+            for (let i = 0; i < 1200; i++) {
+                stars.push({
+                    x: (Math.random() - 0.5) * 8000,
+                    y: (Math.random() - 0.5) * 8000,
+                    z: (Math.random() - 0.5) * 8000,
+                    brightness: Math.random(),
+                    twinkle: Math.random() * Math.PI * 2,
+                    color: Math.random() > 0.7 ? ['#FFB6C1', '#87CEEB', '#FFD700', '#FF6347'][Math.floor(Math.random() * 4)] : '#FFFFFF'
+                });
+            }
+        }
+        
+        // Geração do cinturão de asteroides
+        function generateAsteroidBelt() {
+            asteroids = [];
+            const asteroidCount = 300;
+            const innerRadius = 280;
+            const outerRadius = 350;
+            
+            for (let i = 0; i < asteroidCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = innerRadius + Math.random() * (outerRadius - innerRadius);
+                const inclination = (Math.random() - 0.5) * 0.3;
+                
+                asteroids.push({
+                    x: Math.cos(angle) * distance,
+                    y: Math.sin(inclination) * 20,
+                    z: Math.sin(angle) * distance,
+                    radius: 0.5 + Math.random() * 2,
+                    color: ['#8C7853', '#A0906B', '#696969', '#778899'][Math.floor(Math.random() * 4)],
+                    rotationSpeed: (Math.random() - 0.5) * 0.02,
+                    orbitalSpeed: 0.0001 + Math.random() * 0.0002,
+                    angle: angle,
+                    distance: distance,
+                    brightness: 0.3 + Math.random() * 0.7
+                });
+            }
+        }
+        
+        // Geração do cinturão de Kuiper
+        function generateKuiperBelt() {
+            kuiperBelt = [];
+            const objectCount = 150;
+            const innerRadius = 1200;
+            const outerRadius = 1800;
+            
+            for (let i = 0; i < objectCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = innerRadius + Math.random() * (outerRadius - innerRadius);
+                const inclination = (Math.random() - 0.5) * 0.5;
+                
+                kuiperBelt.push({
+                    x: Math.cos(angle) * distance,
+                    y: Math.sin(inclination) * 50,
+                    z: Math.sin(angle) * distance,
+                    radius: 0.3 + Math.random() * 1.5,
+                    color: ['#B0C4DE', '#4682B4', '#6495ED', '#87CEEB'][Math.floor(Math.random() * 4)],
+                    orbitalSpeed: 0.00005 + Math.random() * 0.00008,
+                    angle: angle,
+                    distance: distance,
+                    brightness: 0.2 + Math.random() * 0.5,
+                    isIcy: true
+                });
+            }
+        }
+        
+        // Geração de galáxias distantes
+        function generateGalaxies() {
+            galaxies = [];
+            const galaxyCount = 8;
+            
+            for (let i = 0; i < galaxyCount; i++) {
+                galaxies.push({
+                    x: (Math.random() - 0.5) * 15000,
+                    y: (Math.random() - 0.5) * 15000,
+                    z: (Math.random() - 0.5) * 15000,
+                    size: 20 + Math.random() * 40,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotationSpeed: (Math.random() - 0.5) * 0.001,
+                    type: Math.random() > 0.5 ? 'spiral' : 'elliptical',
+                    color: ['#FFB6C1', '#DDA0DD', '#87CEEB', '#F0E68C'][Math.floor(Math.random() * 4)],
+                    brightness: 0.1 + Math.random() * 0.3
+                });
+            }
+        }
+        
+        // Geração de nebulosas
+        function generateNebulae() {
+            nebulae = [];
+            const nebulaCount = 5;
+            
+            for (let i = 0; i < nebulaCount; i++) {
+                nebulae.push({
+                    x: (Math.random() - 0.5) * 12000,
+                    y: (Math.random() - 0.5) * 12000,
+                    z: (Math.random() - 0.5) * 12000,
+                    size: 80 + Math.random() * 120,
+                    color: ['#FF69B4', '#9370DB', '#00CED1', '#FF6347', '#32CD32'][Math.floor(Math.random() * 5)],
+                    brightness: 0.05 + Math.random() * 0.15,
+                    pulse: Math.random() * Math.PI * 2,
+                    pulseSpeed: 0.001 + Math.random() * 0.002
+                });
+            }
+        }
+        
+        // Geração de cometas
+        function generateComets() {
+            comets = [];
+            const cometCount = 3;
+            
+            for (let i = 0; i < cometCount; i++) {
+                const distance = 400 + Math.random() * 800;
+                const angle = Math.random() * Math.PI * 2;
+                
+                comets.push({
+                    x: Math.cos(angle) * distance,
+                    y: (Math.random() - 0.5) * 100,
+                    z: Math.sin(angle) * distance,
+                    radius: 1 + Math.random() * 2,
+                    tailLength: 30 + Math.random() * 50,
+                    color: '#87CEEB',
+                    tailColor: '#B0E0E6',
+                    orbitalSpeed: 0.0002 + Math.random() * 0.0003,
+                    angle: angle,
+                    distance: distance,
+                    eccentricity: 0.3 + Math.random() * 0.4,
+                    trail: []
+                });
+            }
+        }
+        
+        // Renderização do campo estelar
+        function renderStarField() {
+            const time = Date.now() * 0.001;
+            
+            stars.forEach(star => {
+                const rotated = rotate3D(star.x - camera.x, star.y - camera.y, star.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (projected.scale > 0 && projected.x >= -10 && projected.x <= canvas.width + 10 && 
+                    projected.y >= -10 && projected.y <= canvas.height + 10) {
+                    
+                    const twinkle = Math.sin(time + star.twinkle) * 0.3 + 0.7;
+                    const size = star.brightness * 2.5 * twinkle * projected.scale;
+                    const alpha = star.brightness * 0.9 * twinkle;
+                    
+                    // Usar cor da estrela
+                    if (star.color === '#FFFFFF') {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    } else {
+                        const rgb = hexToRgb(star.color);
+                        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+                    }
+                    
+                    // Estrelas maiores têm efeito de brilho
+                    if (size > 2) {
+                        const gradient = ctx.createRadialGradient(
+                            projected.x, projected.y, 0,
+                            projected.x, projected.y, size * 2
+                        );
+                        gradient.addColorStop(0, ctx.fillStyle);
+                        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(projected.x, projected.y, size * 2, 0, 2 * Math.PI);
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(projected.x, projected.y, Math.max(1, size), Math.max(1, size));
+                    }
+                }
+            });
+        }
+        
+        // Função auxiliar para converter hex para RGB
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : {r: 255, g: 255, b: 255};
+        }
+        
+        // Renderização de galáxias distantes
+        function renderGalaxies() {
+            const time = Date.now() * 0.001;
+            
+            galaxies.forEach(galaxy => {
+                const rotated = rotate3D(galaxy.x - camera.x, galaxy.y - camera.y, galaxy.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (projected.scale > 0.01) {
+                    const size = galaxy.size * projected.scale * 0.1;
+                    const alpha = galaxy.brightness * projected.scale;
+                    
+                    if (size > 1) {
+                        const rgb = hexToRgb(galaxy.color);
+                        
+                        if (galaxy.type === 'spiral') {
+                            // Galáxia espiral
+                            const rotation = galaxy.rotation + time * galaxy.rotationSpeed;
+                            
+                            ctx.save();
+                            ctx.translate(projected.x, projected.y);
+                            ctx.rotate(rotation);
+                            
+                            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+                            gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
+                            gradient.addColorStop(0.5, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha * 0.5})`);
+                            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                            
+                            ctx.fillStyle = gradient;
+                            ctx.fillRect(-size, -size * 0.3, size * 2, size * 0.6);
+                            ctx.fillRect(-size * 0.3, -size, size * 0.6, size * 2);
+                            
+                            ctx.restore();
+                        } else {
+                            // Galáxia elíptica
+                            const gradient = ctx.createRadialGradient(
+                                projected.x, projected.y, 0,
+                                projected.x, projected.y, size
+                            );
+                            gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
+                            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                            
+                            ctx.fillStyle = gradient;
+                            ctx.beginPath();
+                            ctx.ellipse(projected.x, projected.y, size, size * 0.7, 0, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Renderização de nebulosas
+        function renderNebulae() {
+            const time = Date.now() * 0.001;
+            
+            nebulae.forEach(nebula => {
+                const rotated = rotate3D(nebula.x - camera.x, nebula.y - camera.y, nebula.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (projected.scale > 0.01) {
+                    const size = nebula.size * projected.scale * 0.05;
+                    const pulse = Math.sin(time * nebula.pulseSpeed + nebula.pulse) * 0.3 + 0.7;
+                    const alpha = nebula.brightness * projected.scale * pulse;
+                    
+                    if (size > 2) {
+                        const rgb = hexToRgb(nebula.color);
+                        
+                        // Criar múltiplas camadas para efeito de nebulosa
+                        for (let i = 0; i < 3; i++) {
+                            const layerSize = size * (1 + i * 0.3);
+                            const layerAlpha = alpha / (i + 1);
+                            
+                            const gradient = ctx.createRadialGradient(
+                                projected.x, projected.y, 0,
+                                projected.x, projected.y, layerSize
+                            );
+                            gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${layerAlpha})`);
+                            gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${layerAlpha * 0.3})`);
+                            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                            
+                            ctx.fillStyle = gradient;
+                            ctx.beginPath();
+                            ctx.arc(projected.x, projected.y, layerSize, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Renderização de órbitas
+        function renderOrbit(body) {
+            if (!simulation.showOrbits || body.orbitalPeriod === 0) return;
+            
+            ctx.strokeStyle = 'rgba(252, 61, 33, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            
+            const distance = body.distance * simulation.distanceScale;
+            const segments = 128;
+            
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * 2 * Math.PI;
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                const rotated = rotate3D(x - camera.x, 0 - camera.y, z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (i === 0) {
+                    ctx.moveTo(projected.x, projected.y);
+                } else {
+                    ctx.lineTo(projected.x, projected.y);
+                }
+            }
+            
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        // Renderização dos anéis de Saturno
+        function renderPlanetaryRings(x, y, scale, planetRadius) {
+            const rings = [
+                { radius: planetRadius * 1.8, width: 2, opacity: 0.7, color: '#FAD5A5' },
+                { radius: planetRadius * 2.2, width: 1, opacity: 0.5, color: '#E8C547' },
+                { radius: planetRadius * 2.6, width: 1.5, opacity: 0.4, color: '#D4AF37' }
+            ];
+            
+            rings.forEach(ring => {
+                ctx.strokeStyle = `rgba(250, 213, 165, ${ring.opacity})`;
+                ctx.lineWidth = ring.width * scale;
+                ctx.beginPath();
+                ctx.ellipse(x, y, ring.radius, ring.radius * 0.3, 0, 0, 2 * Math.PI);
+                ctx.stroke();
+            });
+        }
+        
+        // Renderização de asteroides
+        function renderAsteroids(time) {
+            if (!simulation.showAsteroids) return;
+            
+            const currentTime = simulation.paused ? simulation.time : time;
+            const timeInSeconds = (currentTime - simulation.startTime) / 1000;
+            
+            asteroids.forEach(asteroid => {
+                // Atualizar posição orbital
+                const newAngle = asteroid.angle + timeInSeconds * asteroid.orbitalSpeed * simulation.speed;
+                asteroid.x = Math.cos(newAngle) * asteroid.distance * simulation.distanceScale;
+                asteroid.z = Math.sin(newAngle) * asteroid.distance * simulation.distanceScale;
+                
+                const rotated = rotate3D(asteroid.x - camera.x, asteroid.y - camera.y, asteroid.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (projected.scale > 0) {
+                    const radius = asteroid.radius * simulation.sizeScale * projected.scale;
+                    
+                    if (radius > 0.5) {
+                        const rgb = hexToRgb(asteroid.color);
+                        const alpha = asteroid.brightness * projected.scale;
+                        
+                        // Asteroide com textura rochosa
+                        const gradient = ctx.createRadialGradient(
+                            projected.x - radius * 0.3, projected.y - radius * 0.3, 0,
+                            projected.x, projected.y, radius
+                        );
+                        gradient.addColorStop(0, `rgba(${rgb.r + 30}, ${rgb.g + 30}, ${rgb.b + 30}, ${alpha})`);
+                        gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
+                        gradient.addColorStop(1, `rgba(${Math.max(0, rgb.r - 50)}, ${Math.max(0, rgb.g - 50)}, ${Math.max(0, rgb.b - 50)}, ${alpha})`);
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(projected.x, projected.y, radius, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        // Adicionar pontos brilhantes para simular minerais
+                        if (radius > 2 && Math.random() > 0.95) {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                            ctx.fillRect(projected.x + (Math.random() - 0.5) * radius, 
+                                       projected.y + (Math.random() - 0.5) * radius, 1, 1);
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Renderização do cinturão de Kuiper
+        function renderKuiperBelt(time) {
+            if (!simulation.showKuiper) return;
+            
+            const currentTime = simulation.paused ? simulation.time : time;
+            const timeInSeconds = (currentTime - simulation.startTime) / 1000;
+            
+            kuiperBelt.forEach(object => {
+                // Atualizar posição orbital
+                const newAngle = object.angle + timeInSeconds * object.orbitalSpeed * simulation.speed;
+                object.x = Math.cos(newAngle) * object.distance * simulation.distanceScale;
+                object.z = Math.sin(newAngle) * object.distance * simulation.distanceScale;
+                
+                const rotated = rotate3D(object.x - camera.x, object.y - camera.y, object.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (projected.scale > 0) {
+                    const radius = object.radius * simulation.sizeScale * projected.scale;
+                    
+                    if (radius > 0.3) {
+                        const rgb = hexToRgb(object.color);
+                        const alpha = object.brightness * projected.scale;
+                        
+                        // Objeto gelado com brilho azulado
+                        const gradient = ctx.createRadialGradient(
+                            projected.x - radius * 0.2, projected.y - radius * 0.2, 0,
+                            projected.x, projected.y, radius * 1.2
+                        );
+                        gradient.addColorStop(0, `rgba(${rgb.r + 50}, ${rgb.g + 50}, ${rgb.b + 50}, ${alpha})`);
+                        gradient.addColorStop(0.6, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
+                        gradient.addColorStop(1, `rgba(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${rgb.b}, ${alpha * 0.3})`);
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(projected.x, projected.y, radius, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        // Efeito de gelo brilhante
+                        if (object.isIcy && radius > 1) {
+                            ctx.fillStyle = `rgba(173, 216, 230, ${alpha * 0.6})`;
+                            ctx.beginPath();
+                            ctx.arc(projected.x - radius * 0.3, projected.y - radius * 0.3, radius * 0.3, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Renderização de cometas
+        function renderComets(time) {
+            if (!simulation.showComets) return;
+            
+            const currentTime = simulation.paused ? simulation.time : time;
+            const timeInSeconds = (currentTime - simulation.startTime) / 1000;
+            
+            comets.forEach(comet => {
+                // Órbita elíptica
+                const orbitalAngle = timeInSeconds * comet.orbitalSpeed * simulation.speed;
+                const eccentricDistance = comet.distance * (1 + comet.eccentricity * Math.cos(orbitalAngle));
+                
+                comet.x = Math.cos(orbitalAngle) * eccentricDistance * simulation.distanceScale;
+                comet.z = Math.sin(orbitalAngle) * eccentricDistance * simulation.distanceScale;
+                
+                // Atualizar trilha
+                comet.trail.push({x: comet.x, y: comet.y, z: comet.z, time: currentTime});
+                if (comet.trail.length > 20) comet.trail.shift();
+                
+                const rotated = rotate3D(comet.x - camera.x, comet.y - camera.y, comet.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                if (projected.scale > 0) {
+                    const radius = comet.radius * simulation.sizeScale * projected.scale;
+                    
+                    // Renderizar cauda do cometa
+                    if (comet.trail.length > 1) {
+                        ctx.strokeStyle = `rgba(176, 224, 230, ${0.3 * projected.scale})`;
+                        ctx.lineWidth = Math.max(1, radius * 0.5);
+                        ctx.beginPath();
+                        
+                        comet.trail.forEach((point, index) => {
+                            const trailRotated = rotate3D(point.x - camera.x, point.y - camera.y, point.z - camera.z, camera.rotX, camera.rotY);
+                            const trailProjected = project3D(trailRotated.x, trailRotated.y, trailRotated.z);
+                            
+                            if (index === 0) {
+                                ctx.moveTo(trailProjected.x, trailProjected.y);
+                            } else {
+                                ctx.lineTo(trailProjected.x, trailProjected.y);
+                            }
+                        });
+                        
+                        ctx.stroke();
+                    }
+                    
+                    // Núcleo do cometa
+                    if (radius > 0.5) {
+                        const rgb = hexToRgb(comet.color);
+                        
+                        const gradient = ctx.createRadialGradient(
+                            projected.x - radius * 0.3, projected.y - radius * 0.3, 0,
+                            projected.x, projected.y, radius * 2
+                        );
+                        gradient.addColorStop(0, `rgba(255, 255, 255, ${projected.scale})`);
+                        gradient.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${projected.scale})`);
+                        gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${projected.scale * 0.5})`);
+                        gradient.addColorStop(1, 'rgba(176, 224, 230, 0)');
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(projected.x, projected.y, radius * 2, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        // Núcleo sólido
+                        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${projected.scale})`;
+                        ctx.beginPath();
+                        ctx.arc(projected.x, projected.y, radius, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                }
+            });
+        }
+        
+        // Renderização dos corpos celestes
+        function renderCelestialBody(body, time) {
+            const position = calculateOrbitalPosition(body, time);
+            body.x = position.x;
+            body.y = position.y;
+            body.z = position.z;
+            
+            const rotated = rotate3D(body.x - camera.x, body.y - camera.y, body.z - camera.z, camera.rotX, camera.rotY);
+            const projected = project3D(rotated.x, rotated.y, rotated.z);
+            
+            if (projected.scale > 0) {
+                const radius = body.radius * simulation.sizeScale * projected.scale;
+                
+                // Sistema de iluminação
+                const gradient = ctx.createRadialGradient(
+                    projected.x - radius * 0.3, projected.y - radius * 0.3, 0,
+                    projected.x, projected.y, radius * 1.2
+                );
+                
+                if (body.type === 'star') {
+                    gradient.addColorStop(0, '#FFFFFF');
+                    gradient.addColorStop(0.3, body.color);
+                    gradient.addColorStop(0.7, body.glowColor);
+                    gradient.addColorStop(1, '#FF4500');
+                    
+                    // Efeito de corona solar
+                    const coronaGradient = ctx.createRadialGradient(
+                        projected.x, projected.y, radius,
+                        projected.x, projected.y, radius * 2
+                    );
+                    coronaGradient.addColorStop(0, 'rgba(255, 215, 0, 0.3)');
+                    coronaGradient.addColorStop(1, 'rgba(255, 69, 0, 0)');
+                    
+                    ctx.fillStyle = coronaGradient;
+                    ctx.beginPath();
+                    ctx.arc(projected.x, projected.y, radius * 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                } else {
+                    gradient.addColorStop(0, body.glowColor || body.color);
+                    gradient.addColorStop(0.7, body.color);
+                    gradient.addColorStop(1, '#000000');
+                }
+                
+                // Renderizar corpo principal
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(projected.x, projected.y, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Efeito atmosférico
+                if (body.type === 'terrestrial' && body.name !== 'Mercúrio') {
+                    const atmGradient = ctx.createRadialGradient(
+                        projected.x, projected.y, radius,
+                        projected.x, projected.y, radius * 1.1
+                    );
+                    atmGradient.addColorStop(0, `rgba(135, 206, 235, 0.2)`);
+                    atmGradient.addColorStop(1, 'rgba(135, 206, 235, 0)');
+                    
+                    ctx.fillStyle = atmGradient;
+                    ctx.beginPath();
+                    ctx.arc(projected.x, projected.y, radius * 1.1, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+                
+                // Renderizar anéis
+                if (body.hasRings) {
+                    renderPlanetaryRings(projected.x, projected.y, projected.scale, radius);
+                }
+                
+                // Sistema lunar
+                if (body.moon) {
+                    const currentTime = simulation.paused ? simulation.time : time;
+                    const timeInSeconds = (currentTime - simulation.startTime) / 1000;
+                    const moonOrbitalSpeed = (2 * Math.PI) / (body.moon.orbitalPeriod * 5);
+                    const moonAngle = timeInSeconds * moonOrbitalSpeed * simulation.speed;
+                    const moonX = body.x + Math.cos(moonAngle) * body.moon.distance;
+                    const moonZ = body.z + Math.sin(moonAngle) * body.moon.distance;
+                    
+                    const moonRotated = rotate3D(moonX - camera.x, body.y - camera.y, moonZ - camera.z, camera.rotX, camera.rotY);
+                    const moonProjected = project3D(moonRotated.x, moonRotated.y, moonRotated.z);
+                    
+                    if (moonProjected.scale > 0) {
+                        const moonRadius = body.moon.radius * simulation.sizeScale * moonProjected.scale;
+                        
+                        const moonGradient = ctx.createRadialGradient(
+                            moonProjected.x - moonRadius * 0.3, moonProjected.y - moonRadius * 0.3, 0,
+                            moonProjected.x, moonProjected.y, moonRadius
+                        );
+                        moonGradient.addColorStop(0, '#E0E0E0');
+                        moonGradient.addColorStop(0.7, body.moon.color);
+                        moonGradient.addColorStop(1, '#404040');
+                        
+                        ctx.fillStyle = moonGradient;
+                        ctx.beginPath();
+                        ctx.arc(moonProjected.x, moonProjected.y, moonRadius, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        if (simulation.showLabels && moonRadius > 2) {
+                            ctx.fillStyle = '#E8F4FD';
+                            ctx.font = '10px Orbitron';
+                            ctx.fillText(body.moon.name, moonProjected.x + moonRadius + 5, moonProjected.y);
+                        }
+                    }
+                }
+                
+                // Rótulos
+                if (simulation.showLabels && radius > 3) {
+                    ctx.fillStyle = '#E8F4FD';
+                    ctx.font = `${Math.min(14, radius * 0.8)}px Orbitron`;
+                    ctx.fillText(body.name, projected.x + radius + 8, projected.y - 5);
+                    
+                    if (Object.keys(celestialBodies).find(key => celestialBodies[key] === body) === selectedPlanet) {
+                        ctx.font = '10px Roboto';
+                        ctx.fillStyle = '#B8D4EA';
+                        ctx.fillText(`${body.temperature}`, projected.x + radius + 8, projected.y + 8);
+                    }
+                }
+                
+                // Indicador de seleção
+                if (Object.keys(celestialBodies).find(key => celestialBodies[key] === body) === selectedPlanet) {
+                    ctx.strokeStyle = '#FC3D21';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([10, 5]);
+                    ctx.beginPath();
+                    ctx.arc(projected.x, projected.y, radius + 8, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+        }
+        
+        // Sistema de renderização principal
+        function render() {
+            if (!ctx || !canvas.width || !canvas.height) return;
+            
+            // Limpar canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Fundo espacial
+            const gradient = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, 0,
+                canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height)
+            );
+            gradient.addColorStop(0, '#1a1a2e');
+            gradient.addColorStop(0.5, '#16213e');
+            gradient.addColorStop(1, '#0f0f23');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const currentTime = simulation.paused ? simulation.time : 
+                simulation.startTime + (Date.now() - simulation.startTime) * simulation.speed;
+            
+            // Renderizar elementos de fundo (mais distantes primeiro)
+            try {
+                if (simulation.showNebulae && nebulae.length > 0) renderNebulae();
+                if (simulation.showGalaxies && galaxies.length > 0) renderGalaxies();
+                if (stars.length > 0) renderStarField();
+                
+                // Renderizar órbitas
+                Object.values(celestialBodies).forEach(body => {
+                    renderOrbit(body);
+                });
+                
+                // Renderizar cinturões e elementos espaciais
+                if (simulation.showKuiper && kuiperBelt.length > 0) renderKuiperBelt(currentTime);
+                if (simulation.showAsteroids && asteroids.length > 0) renderAsteroids(currentTime);
+                if (simulation.showComets && comets.length > 0) renderComets(currentTime);
+                
+                // Ordenar corpos por distância da câmera
+                const bodies = Object.values(celestialBodies);
+                bodies.sort((a, b) => {
+                    const distA = Math.sqrt((a.x - camera.x) ** 2 + (a.y - camera.y) ** 2 + (a.z - camera.z) ** 2);
+                    const distB = Math.sqrt((b.x - camera.x) ** 2 + (b.y - camera.y) ** 2 + (b.z - camera.z) ** 2);
+                    return distB - distA;
+                });
+                
+                // Renderizar corpos celestes
+                bodies.forEach(body => {
+                    renderCelestialBody(body, currentTime);
+                });
+                
+                updateTelemetry(currentTime);
+            } catch (error) {
+                console.error('Erro na renderização:', error);
+            }
+        }
+        
+        // Sistema de telemetria
+        function updateTelemetry(time) {
+            try {
+                // Atualizar tempo da missão
+                const missionDuration = Math.abs(time - simulation.startTime) / 1000;
+                const hours = Math.floor(missionDuration / 3600);
+                const minutes = Math.floor((missionDuration % 3600) / 60);
+                const seconds = Math.floor(missionDuration % 60);
+                
+                const missionTimeElement = document.getElementById('missionTime');
+                if (missionTimeElement) {
+                    missionTimeElement.textContent = 
+                        `T+ ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+                
+                // Atualizar data
+                const date = new Date(time);
+                const currentDateElement = document.getElementById('currentDate');
+                if (currentDateElement) {
+                    currentDateElement.textContent = date.toLocaleDateString('pt-BR');
+                }
+                
+                // Atualizar velocidade
+                const speedText = simulation.paused ? 'SIMULAÇÃO PAUSADA' : 
+                    simulation.speed === 1 ? 'Tempo Real' : 
+                    simulation.speed > 0 ? `${simulation.speed}x Acelerado` : `${Math.abs(simulation.speed)}x Reverso`;
+                
+                const speedDisplayElement = document.getElementById('speedDisplay');
+                if (speedDisplayElement) {
+                    speedDisplayElement.textContent = `Velocidade: ${speedText}`;
+                }
+                
+                // Telemetria do corpo selecionado
+                const body = celestialBodies[selectedPlanet];
+                const planetTelemetryElement = document.getElementById('planetTelemetry');
+                
+                if (body && planetTelemetryElement) {
+                    const distance = Math.sqrt((body.x || 0) ** 2 + (body.y || 0) ** 2 + (body.z || 0) ** 2);
+                    const distanceAU = body.distance > 0 ? (distance / simulation.distanceScale / 149.6).toFixed(3) : '0.000';
+                    
+                    planetTelemetryElement.innerHTML = `
+                        <div class="telemetry-data">
+                            <div><span class="data-label">Alvo:</span> <span class="data-value">${body.name}</span></div>
+                            <div><span class="data-label">Massa:</span> <span class="data-value">${body.mass}</span></div>
+                            <div><span class="data-label">Temperatura:</span> <span class="data-value">${body.temperature}</span></div>
+                            <div><span class="data-label">Período Orbital:</span> <span class="data-value">${body.orbitalPeriod} dias</span></div>
+                            <div><span class="data-label">Rotação:</span> <span class="data-value">${Math.abs(body.rotationPeriod)} dias</span></div>
+                            <div><span class="data-label">Distância:</span> <span class="data-value">${distanceAU} UA</span></div>
+                            <div><span class="data-label">Composição:</span> <span class="data-value">${body.composition}</span></div>
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-secondary); margin-top: 8px; line-height: 1.4;">
+                            ${body.info}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Erro na atualização da telemetria:', error);
+            }
+        }
+        
+        // Sistema de câmera
+        function updateCamera() {
+            try {
+                if (camera.mode === 'follow' && camera.following) {
+                    const body = celestialBodies[camera.following];
+                    if (body && typeof body.x === 'number' && typeof body.y === 'number' && typeof body.z === 'number') {
+                        camera.targetX = body.x - 150;
+                        camera.targetY = body.y - 75;
+                        camera.targetZ = body.z + 300;
+                    }
+                }
+                
+                // Suavização da câmera
+                camera.x += (camera.targetX - camera.x) * camera.smoothing;
+                camera.y += (camera.targetY - camera.y) * camera.smoothing;
+                camera.z += (camera.targetZ - camera.z) * camera.smoothing;
+                
+                // Controles de navegação
+                const speed = 5;
+                if (keys['w'] || keys['W']) camera.targetZ -= speed;
+                if (keys['s'] || keys['S']) camera.targetZ += speed;
+                if (keys['a'] || keys['A']) camera.targetX -= speed;
+                if (keys['d'] || keys['D']) camera.targetX += speed;
+                if (keys['q'] || keys['Q']) camera.targetY -= speed;
+                if (keys['e'] || keys['E']) camera.targetY += speed;
+                
+                // Limitar zoom
+                camera.targetZ = Math.max(50, Math.min(5000, camera.targetZ));
+            } catch (error) {
+                console.error('Erro na atualização da câmera:', error);
+            }
+        }
+        
+        // Função para controle de velocidade
+        function setSpeed(speed) {
+            simulation.speed = speed;
+            simulation.paused = speed === 0;
+            document.getElementById('timeSpeed').value = speed;
+        }
+        
+        // Event Listeners
+        canvas.addEventListener('mousedown', (e) => {
+            mouse.down = true;
+            mouse.lastX = e.clientX;
+            mouse.lastY = e.clientY;
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (mouse.down && camera.mode === 'free') {
+                const deltaX = e.clientX - mouse.lastX;
+                const deltaY = e.clientY - mouse.lastY;
+                
+                camera.rotY += deltaX * 0.008;
+                camera.rotX += deltaY * 0.008;
+                
+                camera.rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotX));
+            }
+            mouse.lastX = e.clientX;
+            mouse.lastY = e.clientY;
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            mouse.down = false;
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 25;
+            camera.targetZ += e.deltaY > 0 ? zoomSpeed : -zoomSpeed;
+            camera.targetZ = Math.max(30, Math.min(3000, camera.targetZ));
+        });
+        
+        // Sistema de seleção
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            
+            let closestPlanet = null;
+            let closestDistance = Infinity;
+            
+            Object.entries(celestialBodies).forEach(([key, body]) => {
+                const rotated = rotate3D(body.x - camera.x, body.y - camera.y, body.z - camera.z, camera.rotX, camera.rotY);
+                const projected = project3D(rotated.x, rotated.y, rotated.z);
+                
+                const distance = Math.sqrt((projected.x - clickX) ** 2 + (projected.y - clickY) ** 2);
+                const radius = body.radius * simulation.sizeScale * projected.scale;
+                
+                if (distance < radius + 10 && distance < closestDistance) {
+                    closestDistance = distance;
+                    closestPlanet = key;
+                }
+            });
+            
+            if (closestPlanet) {
+                selectedPlanet = closestPlanet;
+                document.getElementById('planetSelect').value = closestPlanet;
+            }
+        });
+        
+        // Controles de teclado
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            if (e.key === ' ') {
+                e.preventDefault();
+                simulation.paused = !simulation.paused;
+                if (!simulation.paused) {
+                    simulation.startTime = Date.now() - (simulation.time - simulation.startTime) / Math.max(0.1, simulation.speed);
+                } else {
+                    simulation.time = simulation.startTime + (Date.now() - simulation.startTime) * simulation.speed;
+                }
+            }
+            
+            if (e.key === 'r' || e.key === 'R') {
+                camera.x = 0; camera.y = 0; camera.z = 500;
+                camera.targetX = 0; camera.targetY = 0; camera.targetZ = 500;
+                camera.rotX = 0; camera.rotY = 0;
+                camera.mode = 'free';
+                camera.following = null;
+                
+                const freeCameraBtn = document.getElementById('freeCamera');
+                const followPlanetBtn = document.getElementById('followPlanet');
+                if (freeCameraBtn) freeCameraBtn.classList.add('active');
+                if (followPlanetBtn) followPlanetBtn.classList.remove('active');
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Controles da interface
+        function setupInterfaceControls() {
+            const elements = {
+                planetSelect: document.getElementById('planetSelect'),
+                toggleOrbits: document.getElementById('toggleOrbits'),
+                toggleLabels: document.getElementById('toggleLabels'),
+                toggleTrails: document.getElementById('toggleTrails'),
+                toggleGrid: document.getElementById('toggleGrid'),
+                toggleAsteroids: document.getElementById('toggleAsteroids'),
+                toggleKuiper: document.getElementById('toggleKuiper'),
+                toggleComets: document.getElementById('toggleComets'),
+                toggleGalaxies: document.getElementById('toggleGalaxies'),
+                sizeScale: document.getElementById('sizeScale'),
+                distanceScale: document.getElementById('distanceScale'),
+                timeSpeed: document.getElementById('timeSpeed'),
+                followPlanet: document.getElementById('followPlanet'),
+                freeCamera: document.getElementById('freeCamera'),
+                topView: document.getElementById('topView'),
+                resetCamera: document.getElementById('resetCamera')
+            };
+            
+            if (elements.planetSelect) {
+                elements.planetSelect.addEventListener('change', (e) => {
+                    selectedPlanet = e.target.value;
+                });
+            }
+            
+            if (elements.toggleOrbits) {
+                elements.toggleOrbits.addEventListener('click', (e) => {
+                    simulation.showOrbits = !simulation.showOrbits;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleLabels) {
+                elements.toggleLabels.addEventListener('click', (e) => {
+                    simulation.showLabels = !simulation.showLabels;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleTrails) {
+                elements.toggleTrails.addEventListener('click', (e) => {
+                    simulation.showTrails = !simulation.showTrails;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleGrid) {
+                elements.toggleGrid.addEventListener('click', (e) => {
+                    simulation.showGrid = !simulation.showGrid;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleAsteroids) {
+                elements.toggleAsteroids.addEventListener('click', (e) => {
+                    simulation.showAsteroids = !simulation.showAsteroids;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleKuiper) {
+                elements.toggleKuiper.addEventListener('click', (e) => {
+                    simulation.showKuiper = !simulation.showKuiper;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleComets) {
+                elements.toggleComets.addEventListener('click', (e) => {
+                    simulation.showComets = !simulation.showComets;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.toggleGalaxies) {
+                elements.toggleGalaxies.addEventListener('click', (e) => {
+                    simulation.showGalaxies = !simulation.showGalaxies;
+                    simulation.showNebulae = !simulation.showNebulae;
+                    e.target.classList.toggle('active');
+                });
+            }
+            
+            if (elements.sizeScale) {
+                elements.sizeScale.addEventListener('input', (e) => {
+                    simulation.sizeScale = parseFloat(e.target.value);
+                    const sizeValue = document.getElementById('sizeValue');
+                    if (sizeValue) sizeValue.textContent = simulation.sizeScale.toFixed(1) + 'x';
+                });
+            }
+            
+            if (elements.distanceScale) {
+                elements.distanceScale.addEventListener('input', (e) => {
+                    simulation.distanceScale = parseFloat(e.target.value);
+                    const distanceValue = document.getElementById('distanceValue');
+                    if (distanceValue) distanceValue.textContent = simulation.distanceScale.toFixed(2) + 'x';
+                });
+            }
+            
+            if (elements.timeSpeed) {
+                elements.timeSpeed.addEventListener('input', (e) => {
+                    setSpeed(parseFloat(e.target.value));
+                });
+            }
+            
+            if (elements.followPlanet) {
+                elements.followPlanet.addEventListener('click', (e) => {
+                    camera.mode = 'follow';
+                    camera.following = selectedPlanet;
+                    e.target.classList.add('active');
+                    if (elements.freeCamera) elements.freeCamera.classList.remove('active');
+                });
+            }
+            
+            if (elements.freeCamera) {
+                elements.freeCamera.addEventListener('click', (e) => {
+                    camera.mode = 'free';
+                    camera.following = null;
+                    e.target.classList.add('active');
+                    if (elements.followPlanet) elements.followPlanet.classList.remove('active');
+                });
+            }
+            
+            if (elements.topView) {
+                elements.topView.addEventListener('click', () => {
+                    camera.mode = 'free';
+                    camera.following = null;
+                    camera.rotX = -Math.PI / 2;
+                    camera.rotY = 0;
+                    camera.targetX = 0;
+                    camera.targetY = -1000;
+                    camera.targetZ = 0;
+                    if (elements.freeCamera) elements.freeCamera.classList.add('active');
+                    if (elements.followPlanet) elements.followPlanet.classList.remove('active');
+                });
+            }
+            
+            if (elements.resetCamera) {
+                elements.resetCamera.addEventListener('click', () => {
+                    camera.x = 0; camera.y = 0; camera.z = 500;
+                    camera.targetX = 0; camera.targetY = 0; camera.targetZ = 500;
+                    camera.rotX = 0; camera.rotY = 0;
+                    camera.mode = 'free';
+                    camera.following = null;
+                    if (elements.freeCamera) elements.freeCamera.classList.add('active');
+                    if (elements.followPlanet) elements.followPlanet.classList.remove('active');
+                });
+            }
+        }
+        
+        // Sistema de arrastar e redimensionar painéis
+        let dragState = {
+            isDragging: false,
+            currentPanel: null,
+            startX: 0,
+            startY: 0,
+            offsetX: 0,
+            offsetY: 0
+        };
+
+        let resizeState = {
+            isResizing: false,
+            currentPanel: null,
+            resizeType: null,
+            startX: 0,
+            startY: 0,
+            startWidth: 0,
+            startHeight: 0,
+            startLeft: 0,
+            startTop: 0
+        };
+
+        function initializeDraggablePanels() {
+            const panels = document.querySelectorAll('.control-panel');
+            
+            panels.forEach(panel => {
+                // Event listener para arrastar
+                panel.addEventListener('mousedown', (e) => {
+                    // Verificar se clicou em uma alça de redimensionamento
+                    if (e.target.classList.contains('resize-handle')) {
+                        initializeResize(e, panel);
+                        return;
+                    }
+                    
+                    // Não arrastar se clicou em um controle
+                    if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' || 
+                        e.target.tagName === 'BUTTON' || e.target.closest('button') || 
+                        e.target.closest('select') || e.target.closest('input')) {
+                        return;
+                    }
+                    
+                    dragState.isDragging = true;
+                    dragState.currentPanel = panel;
+                    
+                    const rect = panel.getBoundingClientRect();
+                    dragState.offsetX = e.clientX - rect.left;
+                    dragState.offsetY = e.clientY - rect.top;
+                    
+                    panel.classList.add('dragging');
+                    document.body.style.cursor = 'grabbing';
+                    
+                    e.preventDefault();
+                });
+            });
+        }
+
+        function initializeResize(e, panel) {
+            resizeState.isResizing = true;
+            resizeState.currentPanel = panel;
+            resizeState.startX = e.clientX;
+            resizeState.startY = e.clientY;
+            
+            const rect = panel.getBoundingClientRect();
+            resizeState.startWidth = rect.width;
+            resizeState.startHeight = rect.height;
+            resizeState.startLeft = rect.left;
+            resizeState.startTop = rect.top;
+            
+            // Determinar tipo de redimensionamento
+            const classList = e.target.classList;
+            if (classList.contains('resize-se')) resizeState.resizeType = 'se';
+            else if (classList.contains('resize-sw')) resizeState.resizeType = 'sw';
+            else if (classList.contains('resize-ne')) resizeState.resizeType = 'ne';
+            else if (classList.contains('resize-nw')) resizeState.resizeType = 'nw';
+            else if (classList.contains('resize-n')) resizeState.resizeType = 'n';
+            else if (classList.contains('resize-s')) resizeState.resizeType = 's';
+            else if (classList.contains('resize-e')) resizeState.resizeType = 'e';
+            else if (classList.contains('resize-w')) resizeState.resizeType = 'w';
+            
+            panel.classList.add('resizing');
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            // Lógica de arrastar
+            if (dragState.isDragging && dragState.currentPanel) {
+                const newX = e.clientX - dragState.offsetX;
+                const newY = e.clientY - dragState.offsetY - 60; // Compensar header
+                
+                // Limitar dentro da tela
+                const maxX = window.innerWidth - dragState.currentPanel.offsetWidth;
+                const maxY = window.innerHeight - dragState.currentPanel.offsetHeight - 60;
+                
+                const clampedX = Math.max(0, Math.min(newX, maxX));
+                const clampedY = Math.max(0, Math.min(newY, maxY));
+                
+                dragState.currentPanel.style.left = clampedX + 'px';
+                dragState.currentPanel.style.top = (clampedY + 60) + 'px';
+                
+                e.preventDefault();
+            }
+            
+            // Lógica de redimensionar
+            if (resizeState.isResizing && resizeState.currentPanel) {
+                const deltaX = e.clientX - resizeState.startX;
+                const deltaY = e.clientY - resizeState.startY;
+                
+                let newWidth = resizeState.startWidth;
+                let newHeight = resizeState.startHeight;
+                let newLeft = resizeState.startLeft;
+                let newTop = resizeState.startTop;
+                
+                // Tamanhos mínimos
+                const minWidth = 120;
+                const minHeight = 100;
+                
+                switch (resizeState.resizeType) {
+                    case 'se': // Sudeste
+                        newWidth = Math.max(minWidth, resizeState.startWidth + deltaX);
+                        newHeight = Math.max(minHeight, resizeState.startHeight + deltaY);
+                        break;
+                    case 'sw': // Sudoeste
+                        newWidth = Math.max(minWidth, resizeState.startWidth - deltaX);
+                        newHeight = Math.max(minHeight, resizeState.startHeight + deltaY);
+                        newLeft = resizeState.startLeft + (resizeState.startWidth - newWidth);
+                        break;
+                    case 'ne': // Nordeste
+                        newWidth = Math.max(minWidth, resizeState.startWidth + deltaX);
+                        newHeight = Math.max(minHeight, resizeState.startHeight - deltaY);
+                        newTop = resizeState.startTop + (resizeState.startHeight - newHeight);
+                        break;
+                    case 'nw': // Noroeste
+                        newWidth = Math.max(minWidth, resizeState.startWidth - deltaX);
+                        newHeight = Math.max(minHeight, resizeState.startHeight - deltaY);
+                        newLeft = resizeState.startLeft + (resizeState.startWidth - newWidth);
+                        newTop = resizeState.startTop + (resizeState.startHeight - newHeight);
+                        break;
+                    case 'n': // Norte
+                        newHeight = Math.max(minHeight, resizeState.startHeight - deltaY);
+                        newTop = resizeState.startTop + (resizeState.startHeight - newHeight);
+                        break;
+                    case 's': // Sul
+                        newHeight = Math.max(minHeight, resizeState.startHeight + deltaY);
+                        break;
+                    case 'e': // Leste
+                        newWidth = Math.max(minWidth, resizeState.startWidth + deltaX);
+                        break;
+                    case 'w': // Oeste
+                        newWidth = Math.max(minWidth, resizeState.startWidth - deltaX);
+                        newLeft = resizeState.startLeft + (resizeState.startWidth - newWidth);
+                        break;
+                }
+                
+                // Aplicar novos tamanhos e posições
+                resizeState.currentPanel.style.width = newWidth + 'px';
+                resizeState.currentPanel.style.height = newHeight + 'px';
+                resizeState.currentPanel.style.left = newLeft + 'px';
+                resizeState.currentPanel.style.top = newTop + 'px';
+                
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (dragState.isDragging) {
+                dragState.currentPanel.classList.remove('dragging');
+                document.body.style.cursor = 'default';
+                
+                dragState.isDragging = false;
+                dragState.currentPanel = null;
+            }
+            
+            if (resizeState.isResizing) {
+                resizeState.currentPanel.classList.remove('resizing');
+                document.body.style.cursor = 'default';
+                
+                resizeState.isResizing = false;
+                resizeState.currentPanel = null;
+                resizeState.resizeType = null;
+            }
+        });
+
+        // Inicialização
+        function initializeSystem() {
+            try {
+                resizeCanvas();
+                generateStarField();
+                generateAsteroidBelt();
+                generateKuiperBelt();
+                generateGalaxies();
+                generateNebulae();
+                generateComets();
+                initializeDraggablePanels();
+                setupInterfaceControls();
+
+                // >>> NOVO: calcular fases reais
+                initPlanetPhases();
+
+                // sliders...
+                const sizeValue = document.getElementById('sizeValue');
+                const distanceValue = document.getElementById('distanceValue');
+                if (sizeValue) sizeValue.textContent = simulation.sizeScale.toFixed(1) + 'x';
+                if (distanceValue) distanceValue.textContent = simulation.distanceScale.toFixed(2) + 'x';
+
+                console.log('🚀 Nexus Solar - Sistema Inicializado');
+            } catch (e) { console.error('Erro na inicialização:', e); }
+        }
+
+        
+        // Loop principal
+        function gameLoop() {
+            try {
+                updateCamera();
+                render();
+            } catch (error) {
+                console.error('Erro no loop de renderização:', error);
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Event listeners
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Inicializar quando o DOM estiver pronto
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initializeSystem();
+                gameLoop();
+            });
+        } else {
+            initializeSystem();
+            gameLoop();
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'980c53efe6acf1cd',t:'MTc1ODE1MTE2MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
